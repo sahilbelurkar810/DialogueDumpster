@@ -1,0 +1,148 @@
+/* Global styles and CSS variables for dark theme */
+:root {
+  /* Color Palette - Deeper, more sophisticated dark theme */
+  --color-background: #0f172a; /* Slate-900 like */
+  --color-background-alt: #1e293b; /* Slate-800 like for cards */
+  --color-card-border: #334155; /* Slate-600 */
+  --color-text-primary: #f8fafc; /* Slate-50 - almost white */
+  --color-text-secondary: #94a3b8; /* Slate-400 */
+  --color-accent-blue: #3b82f6; /* Blue-500 for primary actions */
+  --color-accent-blue-hover: #2563eb; /* Blue-600 */
+  --color-accent-red: #ef4444; /* Red-500 for destructive actions */
+  --color-accent-red-hover: #dc2626; /* Red-600 */
+  --color-input-bg: #334155; /* Slate-600 for inputs */
+  --color-input-border: #475569; /* Slate-500 for input borders */
+  --color-input-focus-glow: rgba(59, 130, 246, 0.3); /* Blue glow */
+  --color-shadow: rgba(0, 0, 0, 0.4); /* Darker shadow */
+
+  /* Spacing and Borders */
+  --spacing-unit: 1rem; /* 16px */
+  --border-radius-sm: 0.25rem; /* 4px */
+  --border-radius-md: 0.5rem; /* 8px */
+  --border-radius-lg: 0.75rem; /* 12px */
+
+  /* Typography */
+  --font-family-primary: 'Inter', sans-serif, 'Segoe UI', 'Roboto';
+  --font-size-base: 1rem;
+  --font-size-sm: 0.875rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+}
+
+/* Import Google Font (Inter) - add this to your <head> in public/index.html */
+/* <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"> */
+
+
+/* Basic resets */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  min-height: 100vh; /* Ensure body takes full height */
+  display: flex; /* For centering #root */
+  justify-content: center; /* Center horizontally */
+  align-items: flex-start; /* Align content to top */
+  padding: var(--spacing-unit);
+  padding-top: calc(var(--spacing-unit) * 3); /* More padding at top */
+}
+
+#root {
+  width: 100%;
+  max-width: 1400px; /* Wider layout */
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-unit);
+  font-weight: 600;
+}
+
+h1 { font-size: var(--font-size-2xl); }
+h2 { font-size: var(--font-size-xl); }
+h3 { font-size: var(--font-size-lg); }
+
+input, textarea, select {
+  font-family: inherit;
+  color: var(--color-text-primary);
+  background-color: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  padding: var(--spacing-unit) calc(var(--spacing-unit) * 0.75);
+  border-radius: var(--border-radius-md);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  width: 100%; /* Make them take full width by default */
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--color-accent-blue);
+  box-shadow: 0 0 0 3px var(--color-input-focus-glow);
+}
+
+button {
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  color: var(--color-text-primary);
+  padding: calc(var(--spacing-unit) * 0.75) calc(var(--spacing-unit) * 1.5);
+  border-radius: var(--border-radius-md);
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  white-space: nowrap; /* Prevent text wrapping */
+}
+
+/* Primary Button Style */
+.button-primary {
+  background-color: var(--color-accent-blue);
+}
+.button-primary:hover:not(:disabled) {
+  background-color: var(--color-accent-blue-hover);
+  transform: translateY(-1px);
+}
+.button-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Destructive Button Style (for remove character) */
+.button-destructive {
+  background-color: var(--color-accent-red);
+}
+.button-destructive:hover:not(:disabled) {
+  background-color: var(--color-accent-red-hover);
+}
+
+button:disabled {
+  background-color: var(--color-card-border); /* Muted for disabled */
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.message-error {
+  color: var(--color-accent-red);
+  background-color: rgba(239, 68, 68, 0.1); /* Red-500 with transparency */
+  border: 1px solid var(--color-accent-red);
+  padding: var(--spacing-unit);
+  border-radius: var(--border-radius-md);
+  margin-top: var(--spacing-unit);
+  font-size: var(--font-size-sm);
+}
+
+.message-info {
+  color: var(--color-text-secondary);
+  background-color: rgba(59, 130, 246, 0.1); /* Blue-500 with transparency */
+  border: 1px solid var(--color-accent-blue);
+  padding: var(--spacing-unit);
+  border-radius: var(--border-radius-md);
+  margin-top: var(--spacing-unit);
+  font-size: var(--font-sm);
+}

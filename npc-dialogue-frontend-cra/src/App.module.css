@@ -1,0 +1,111 @@
+/* src/App.module.css - Main layout for the application */
+
+.appContainer {
+  display: grid;
+  grid-template-areas:
+    "header header"
+    "context output"
+    "characters output"
+    "controls output"; /* New grid areas for a two-column layout */
+  grid-template-columns: 1fr 1fr; /* Two equally wide columns */
+  grid-template-rows: auto 1fr auto auto; /* Header, then flexible content, then more auto rows */
+  gap: calc(var(--spacing-unit) * 1.5); /* Gap between grid items */
+
+  background-color: var(--color-background-alt);
+  border-radius: var(--border-radius-lg);
+  padding: calc(var(--spacing-unit) * 2);
+  box-shadow: 0 8px 30px var(--color-shadow);
+  width: 100%;
+  min-height: 80vh; /* Make the container reasonably tall */
+}
+
+.header {
+  grid-area: header;
+  text-align: center;
+  padding-bottom: calc(var(--spacing-unit) * 1.5);
+  border-bottom: 1px solid var(--color-card-border);
+  margin-bottom: calc(var(--spacing-unit) * 0.5); /* Reduce margin here, gap handles spacing */
+}
+
+.header h1 {
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--spacing-unit);
+  background: linear-gradient(45deg, var(--color-accent-blue), var(--color-text-primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.header p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+}
+
+.sectionCard {
+  background-color: var(--color-background);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--border-radius-lg);
+  padding: calc(var(--spacing-unit) * 1.5);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  display: flex; /* Use flex for content within the card */
+  flex-direction: column;
+  height: 100%; /* Make cards fill their grid area */
+}
+
+.sectionCard h2 {
+  font-size: var(--font-size-xl);
+  margin-top: 0;
+  padding-bottom: var(--spacing-unit);
+  border-bottom: 1px solid rgba(51, 65, 85, 0.5); /* Slate-600 transparent */
+  margin-bottom: var(--spacing-unit);
+}
+
+/* Specific Grid Area Assignments */
+.contextArea {
+  grid-area: context;
+}
+
+.charactersArea {
+  grid-area: characters;
+}
+
+.outputArea {
+  grid-area: output;
+  display: flex; /* Ensure its content fills */
+  flex-direction: column;
+  justify-content: space-between; /* Space out result display and info */
+}
+
+.controlsArea {
+  grid-area: controls;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-unit); /* Space between length selector and button */
+  align-items: stretch; /* Make children fill width */
+}
+
+/* Responsive Adjustments */
+@media (max-width: 1024px) {
+  .appContainer {
+    grid-template-areas:
+      "header"
+      "context"
+      "characters"
+      "controls"
+      "output"; /* Stack all areas on smaller screens */
+    grid-template-columns: 1fr; /* Single column */
+    grid-template-rows: auto; /* Auto height for all */
+  }
+}
+
+@media (max-width: 768px) {
+  .appContainer {
+    padding: var(--spacing-unit);
+    gap: var(--spacing-unit);
+  }
+  .sectionCard {
+    padding: var(--spacing-unit);
+  }
+  body {
+    padding-top: var(--spacing-unit);
+  }
+}

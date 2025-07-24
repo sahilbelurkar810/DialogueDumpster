@@ -1,0 +1,33 @@
+.inputGroup {
+  margin-bottom: 0; /* Handled by parent container spacing */
+  flex-grow: 1; /* Allow textarea to take available space */
+  display: flex;
+  flex-direction: column;
+}
+
+.inputGroup label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500; /* Slightly lighter weight */
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.textArea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  background-color: var(--color-input-bg); /* Use input specific background */
+  border: 1px solid var(--color-input-border);
+  padding: var(--spacing-unit);
+  border-radius: var(--border-radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  flex-grow: 1; /* Make it fill available height in flex container */
+}
+
+.textArea:focus {
+  border-color: var(--color-accent-blue);
+  box-shadow: 0 0 0 3px var(--color-input-focus-glow);
+}
