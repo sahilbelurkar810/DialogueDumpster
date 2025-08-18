@@ -1,0 +1,24 @@
+{
+    "context": "The player and the main antagonist meet for the first time in an ancient, crumbling ruin. The air is thick with tension and the smell of ozone.",
+    "characters": [
+        {
+            "name": "Arion",
+            "personality": "Determined and slightly naive, but has a strong sense of justice. Believes in second chances.",
+            "occupation": "Heroic Adventurer",
+            "relationship": "Rival of Velara, unaware of her true power."
+        },
+        {
+            "name": "Velara",
+            "personality": "Cold, calculating, and cynical. Views human emotions as a weakness. Has a hidden past.",
+            "occupation": "Main Antagonist",
+            "relationship": "Former mentor to Arion, now his greatest rival."
+        },
+        {
+            "name": "Kael",
+            "personality": "Observant and cautious. Loyal to Arion but wary of all magic.",
+            "occupation": "Ranger",
+            "relationship": "Arion's childhood friend and trusted companion."
+        }
+    ],
+    "dialogue_length": "Long"
+}

@@ -5,10 +5,11 @@ import os
 import re
 import requests
 from typing import List, Literal, Dict, Any, Union
-
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from routers import auth
 
 
 # --- Pydantic Models for API Requests/Responses ---
@@ -31,25 +32,18 @@ class DialogueResponse(BaseModel):
     timestamp: str
 
 
+load_dotenv()
 # --- LLM Connection & Configuration ---
-# <<--- IMPORTANT: CHOOSE YOUR LLM SETUP --->>
-# Option 1: For local Ollama setup
-# OLLAMA_API_URL = "http://localhost:11434/api/generate"
-# OLLAMA_MODEL_NAME = "zephyr"
-# LLM_API_URL = OLLAMA_API_URL
-# LLM_MODEL_NAME = OLLAMA_MODEL_NAME
+COLAB_LLM_API_URL = os.getenv("COLAB_LLM_API_URL")
+COLAB_LLM_MODEL_NAME = "Zephyr-7B-Beta (via Colab)"
 
-# Option 2: For Colab + Ngrok setup
-# You must copy this from your running Colab notebook!
-# LLM_API_URL = "https://your-ngrok-url-here.ngrok-free.app/generate"
-# LLM_MODEL_NAME = "Zephyr-7B-Beta (via Colab)"
-
-# Default to Ollama for local setup
-LLM_API_URL = "http://localhost:11434/api/generate"
-LLM_MODEL_NAME = "zephyr"
+if not COLAB_LLM_API_URL:
+    raise HTTPException(status_code=500, detail="COLAB_LLM_API_URL is not set in .env")
+MONGODB_URL = os.getenv("MONGODB_URL")
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 # --- FastAPI App Initialization & CORS ---
-app = FastAPI()
+app = FastAPI(title="NPC Dialogue API")
 
 origins = ["http://localhost:3000"]
 app.add_middleware(
@@ -60,15 +54,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include the routers
+app.include_router(auth.router, tags=["Authentication"], prefix="/auth")
+
 
 # --- LLM Prompt & API Functions ---
-def create_prompt(request: Union[DialogueRequest, Dict[str, Any]]) -> str:
-    """Generates a prompt from a structured form or JSON data."""
-    if isinstance(request, DialogueRequest):
-        data = request.dict()
-    else:
-        data = request
-
+def create_prompt(data: Dict[str, Any]) -> str:
+    # (Your existing create_prompt function)
     context = data.get("context", "")
     dialogue_length_str = data.get("dialogue_length", "Medium")
     characters_str = ""
@@ -98,43 +90,71 @@ def create_prompt(request: Union[DialogueRequest, Dict[str, Any]]) -> str:
     return prompt_template
 
 
-def get_llm_response(prompt: str, num_predict: int) -> str:
-    """Sends a request to the LLM API and processes the streamed response."""
-    payload = {
-        "model": LLM_MODEL_NAME,
+def get_colab_response(prompt: str, num_predict: int) -> str:
+    """Sends a request to the Colab LLM API and processes the response."""
+    colab_payload = {
         "prompt": prompt,
-        "options": {
-            "num_predict": num_predict,
-            "temperature": 0.8,
-            "top_p": 0.9,
-            "top_k": 50,
-            "stop": ["</s>", "<|user|>", "<|system|>", "<|assistant|>"],
-        },
+        "max_new_tokens": num_predict,
+        "temperature": 0.8,
+        "top_p": 0.9,
+        "top_k": 50,
     }
-    response = requests.post(LLM_API_URL, json=payload, stream=True, timeout=300)
+    response = requests.post(COLAB_LLM_API_URL, json=colab_payload, timeout=180)
     response.raise_for_status()
-    full_response_content = ""
-    for chunk in response.iter_content(chunk_size=None):
-        if chunk:
-            try:
-                json_chunk = json.loads(chunk.decode("utf-8"))
-                full_response_content += json_chunk.get("response", "")
-            except json.JSONDecodeError:
-                full_response_content += chunk.decode("utf-8")
-    return full_response_content
+    colab_result = response.json()
+    # Check if 'generated_text' exists, if not, return an empty string
+    generated_text = colab_result.get("generated_text", "")
+
+    # Post-processing from Colab LLM's raw output
+    generated_dialogue_cleaned = generated_text.strip()
+    assistant_marker = "<|assistant|>"
+    if assistant_marker in generated_dialogue_cleaned:
+        start_index = generated_dialogue_cleaned.rfind(assistant_marker) + len(
+            assistant_marker
+        )
+        generated_dialogue_cleaned = generated_dialogue_cleaned[start_index:].strip()
+
+    generated_dialogue_cleaned = re.sub(
+        r"\s*\([^()]*\)", "", generated_dialogue_cleaned
+    ).strip()
+    generated_dialogue_cleaned = re.sub(
+        r"(<|system|>|<|user|>|<|assistant|>|Dialogue:)",
+        "",
+        generated_dialogue_cleaned,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    if generated_dialogue_cleaned:
+        last_char = generated_dialogue_cleaned[-1]
+        if last_char not in [".", "?", "!", "…"]:
+            last_punc_index = max(
+                generated_dialogue_cleaned.rfind("."),
+                generated_dialogue_cleaned.rfind("?"),
+                generated_dialogue_cleaned.rfind("!"),
+            )
+            if (
+                last_punc_index != -1
+                and (len(generated_dialogue_cleaned) - (last_punc_index + 1)) < 25
+            ):
+                generated_dialogue_cleaned = generated_dialogue_cleaned[
+                    : last_punc_index + 1
+                ]
+            else:
+                generated_dialogue_cleaned += "..."
+
+    return generated_dialogue_cleaned
 
 
 # --- API Endpoints ---
 @app.get("/")
 async def root():
-    return {"message": f"NPC Dialogue Generator API is running with {LLM_MODEL_NAME}!"}
+    return {
+        "message": f"NPC Dialogue Generator API is running with {COLAB_LLM_MODEL_NAME}!"
+    }
 
 
 @app.post("/generate_dialogue", response_model=DialogueResponse)
 async def generate_dialogue(request: Request):
-    """
-    Generates dialogue based on a structured form or a raw JSON schema.
-    """
     try:
         data = await request.json()
     except json.JSONDecodeError:
@@ -143,7 +163,7 @@ async def generate_dialogue(request: Request):
     if "context" in data and "characters" in data:
         try:
             dialogue_request = DialogueRequest(**data)
-            prompt = create_prompt(dialogue_request)
+            prompt = create_prompt(dialogue_request.dict())
             if dialogue_request.dialogue_length == "Short":
                 llm_num_predict = 150
             elif dialogue_request.dialogue_length == "Medium":
@@ -157,16 +177,26 @@ async def generate_dialogue(request: Request):
     else:
         try:
             llm_num_predict = 400
-            prompt = create_prompt(data)  # Use the same function for both
+            prompt = create_prompt(data)
         except Exception as e:
             raise HTTPException(
                 status_code=400, detail=f"Invalid JSON schema input: {e}"
             )
 
     try:
-        full_response_content = get_llm_response(prompt, llm_num_predict)
+        full_response_content = get_colab_response(prompt, llm_num_predict)
 
+        # Post-processing from Colab LLM's raw output
         generated_dialogue_cleaned = full_response_content.strip()
+        assistant_marker = "<|assistant|>"
+        if assistant_marker in generated_dialogue_cleaned:
+            start_index = generated_dialogue_cleaned.rfind(assistant_marker) + len(
+                assistant_marker
+            )
+            generated_dialogue_cleaned = generated_dialogue_cleaned[
+                start_index:
+            ].strip()
+
         generated_dialogue_cleaned = re.sub(
             r"\s*\([^()]*\)", "", generated_dialogue_cleaned
         ).strip()
@@ -198,14 +228,14 @@ async def generate_dialogue(request: Request):
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
         return DialogueResponse(
             generated_dialogue=generated_dialogue_cleaned,
-            model_used=LLM_MODEL_NAME,
+            model_used=COLAB_LLM_MODEL_NAME,
             timestamp=timestamp,
         )
 
     except requests.exceptions.RequestException as e:
         raise HTTPException(
             status_code=503,
-            detail=f"Failed to connect to LLM server: {str(e)}. Is your LLM service running (`ollama serve` or Colab) and have you pulled the '{LLM_MODEL_NAME}' model?",
+            detail=f"Failed to connect to LLM server: {str(e)}. Is your Colab notebook running and Ngrok tunnel active?",
         )
     except Exception as e:
         import traceback

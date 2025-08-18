@@ -1,38 +1,34 @@
-from fastapi import FastAPI, HTTPException
+# main.py
+import datetime
+import json
+import os
+from typing import List, Literal, Dict, Any
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List, Literal, Dict, Any
-import datetime
-import requests # <--- ADD THIS for making HTTP requests
-import json
-import os # Just in case, though not strictly needed for this version
-import re
+from routers import auth
+from huggingface_hub import InferenceClient
 
-# --- IMPORTANT: Configure the URL of your Colab LLM server ---
-# You must copy this from the output of your Colab notebook after running it!
-COLAB_LLM_API_URL = (
-    "https://c6191a264962.ngrok-free.app/generate"  # <--- PASTE YOUR COPIED URL HERE
-)
-# Example: "https://abcdef12345.ngrok-free.app/generate"
+# Load environment variables
+load_dotenv()
+API_TOKEN = os.getenv("HF_TOKEN")
 
-# --- FastAPI Setup ---
-app = FastAPI()
+# --- Model name constant ---
+LLM_MODEL_NAME = "openai/gpt-oss-120b"
 
-# CORS Middleware (important for frontend communication)
-origins = [
-    "http://localhost:3000", # Your React app's default port
-    # Add other frontend origins here if needed (e.g., your deployment URL)
-]
-
+# --- App setup ---
+app = FastAPI(title="NPC Dialogue Generator (no-auth)")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # adjust for production
     allow_credentials=True,
-    allow_methods=["*"], # Allows GET, POST, OPTIONS, etc.
-    allow_headers=["*"], # Allows all headers from the frontend
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# --- Pydantic Models for API Requests/Responses ---
+# --- Pydantic Models ---
 class Character(BaseModel):
     name: str
     personality: str
@@ -49,184 +45,330 @@ class DialogueResponse(BaseModel):
     model_used: str
     timestamp: str
 
-# --- Prompt Engineering Function (Same as before) ---
-def create_prompt(request: DialogueRequest) -> str:
-    """
-    Constructs the prompt for the LLM based on the request data.
-    """
-    context = request.context
-    dialogue_length_str = request.dialogue_length
+# --- Include authentication routes ---
+app.include_router(auth.router, tags=["Authentication"], prefix="/auth")
 
-    characters_str = ""
-    for char in request.characters:
-        characters_str += (
-            f"- Name: {char.name}, Personality: {char.personality}, "
-            f"Occupation: {char.occupation}, Relationship: {char.relationship}\n"
-        )
-    characters_str = characters_str.strip()
+# --- Hugging Face client ---
+client = InferenceClient(api_key=API_TOKEN)
+def create_prompt(data: Dict[str, Any]) -> str:
+    context = data.get("context", "")
+    dialogue_length_str = data.get("dialogue_length", "Medium")
 
-    prompt_template = (
+    # Map dialogue length to target number of exchanges
+    length_mapping = {"Short": 24, "Medium": 48, "Long": 62}
+    target_lines = length_mapping.get(dialogue_length_str, 48)
+
+    characters = data.get("characters", [])
+    character_names = [c.get('name', '') for c in characters]
+    
+    characters_str = "\n".join(
+        f"- Name: {c.get('name', '')}, Personality: {c.get('personality', '')}, "
+        f"Occupation: {c.get('occupation', '')}, Relationship: {c.get('relationship', '')}"
+        for c in characters
+    )
+    
+    # Create example showing how to alternate between characters
+    example_pattern = ""
+    if len(character_names) >= 2:
+        example_pattern = f"\nExample format:\n{character_names[0]}: [their dialogue]\n"
+        if len(character_names) >= 2:
+            example_pattern += f"{character_names[1]}: [their dialogue]\n"
+        if len(character_names) >= 3:
+            example_pattern += f"{character_names[2]}: [their dialogue]\n"
+        example_pattern += "...and so on, alternating between all characters.\n"
+
+    return (
         "<|system|>\n"
         "You are an AI assistant specialized in generating dialogue for video game NPCs. "
         "Your task is to create a dialogue based on the provided context, character details, and their relationships. "
+        f"Write exactly {target_lines} turns of dialogue, cycling through all {len(characters)} characters in order. "
+        "Each character should speak in turn, then move to the next character, then cycle back to the first. "
         "Ensure the dialogue is consistent with the characters' personalities, occupations, "
         "and relationships and directly reflects the given context.\n"
-        "Adhere to the requested dialogue length:\n"
-        "- 'Short': 2-5 exchanges (lines from characters).\n"
-        "- 'Medium': 6-10 exchanges.\n"
-        "- 'Long': 11-20+ exchanges.\n"
-        "Present the dialogue with each character's name followed by a colon and their line, "
-        "e.g., 'CharacterName: Their dialogue line.'\n"
+        f"{example_pattern}"
+        "**CRITICAL: Output ONLY the dialogue lines in the format 'CharacterName: dialogue text'. "
+        "Do NOT include any explanations, planning, reasoning, or commentary. "
+        "Start immediately with the first character's line.**\n"
         "</s>\n"
         "<|user|>\n"
         f"Context: {context}\n\n"
-        f"Characters:\n{characters_str}\n\n"
-        f"Dialogue Length: {dialogue_length_str}\n\n"
-        "Dialogue:\n"
+        f"Characters (speak in this order, cycling through):\n{characters_str}\n\n"
+        f"Generate exactly {target_lines} lines of dialogue now:\n"
         "</s>\n"
-        "<|assistant|>"
+        "<|assistant|>\n"
     )
-    return prompt_template
+    
+def get_llm_response(prompt: str, num_predict: int, target_lines: int = 48) -> str:
+    try:
+        completion = client.chat.completions.create(
+            model=LLM_MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=num_predict,
+            temperature=0.8
+        )
+
+        if not completion or not completion.choices:
+            raise ValueError(f"Empty response from LLM: {completion}")
+
+        message = completion.choices[0].message
+
+        # Get all available content
+        all_content = []
+        if message.content:
+            all_content.append(("content", message.content))
+        if hasattr(message, 'reasoning_content') and message.reasoning_content:
+            all_content.append(("reasoning_content", message.reasoning_content))
+        
+        def extract_dialogue_aggressively(text, source_name):
+            # Split text into chunks and look for dialogue in each
+            potential_dialogue = []
+            
+            # Look for sections that might contain dialogue
+            sections = []
+            
+            # Split by common separators
+            for separator in ['\n\n', ':\n', 'dialogue:\n', 'conversation:\n']:
+                if separator.lower() in text.lower():
+                    sections.extend(text.split(separator))
+            
+            # If no sections found, treat whole text as one section
+            if not sections:
+                sections = [text]
+            
+            for section in sections:
+                lines = section.split('\n')
+                section_dialogue = []
+                
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # More flexible dialogue detection
+                    if ':' in line:
+                        parts = line.split(':', 1)
+                        if len(parts) == 2:
+                            name_part = parts[0].strip()
+                            dialogue_part = parts[1].strip()
+                            
+                            # Remove numbers from the beginning of name_part (e.g., "1. Elias" -> "Elias")
+                            clean_name = name_part
+                            if name_part and name_part[0].isdigit():
+                                # Remove leading numbers and dots/spaces
+                                clean_name = name_part.lstrip('0123456789. ').strip()
+                            
+                            # Check if this looks like character dialogue
+                            if (clean_name and dialogue_part and
+                                len(clean_name) <= 25 and  # Allow longer names
+                                not clean_name.lower().startswith(('step', 'line', 'turn', 'note', 'example')) and
+                                not any(word in clean_name.lower() for word in 
+                                       ['user', 'assistant', 'system', 'we need', 'total', 'after']) and
+                                len(dialogue_part) > 5 and  # Meaningful dialogue
+                                dialogue_part[0] not in ['(', '[', '<'] and  # Not stage directions
+                                not dialogue_part.lower().startswith(('exactly', 'we need', 'so ', 'since'))):
+                                
+                                section_dialogue.append(f"{clean_name}: {dialogue_part}")
+                
+                # If this section has more dialogue than what we found so far, use it
+                if len(section_dialogue) > len(potential_dialogue):
+                    potential_dialogue = section_dialogue
+            
+            print(f"Found {len(potential_dialogue)} dialogue lines in {source_name}")
+            if len(potential_dialogue) > 0:
+                print(f"First few lines from {source_name}: {potential_dialogue[:3]}")
+            
+            return potential_dialogue
+        
+        # Try to extract from all content sources
+        best_dialogue = []
+        for source_name, content in all_content:
+            dialogue_lines = extract_dialogue_aggressively(content, source_name)
+            if len(dialogue_lines) > len(best_dialogue):
+                best_dialogue = dialogue_lines
+        
+        # If we found dialogue lines, format and return them
+        if best_dialogue:
+            # Take up to target_lines
+            final_lines = best_dialogue[:target_lines]
+            
+            # Format with spacing
+            formatted_lines = []
+            for i, line in enumerate(final_lines):
+                formatted_lines.append(line)
+                if i < len(final_lines) - 1:
+                    formatted_lines.append("")
+            
+            return "\n".join(formatted_lines)
+        
+        # If still no dialogue found, try to manually generate it from the character info
+        # This is a fallback approach
+        print("No dialogue found in model output, attempting fallback generation...")
+        
+        # Try a simpler, more direct prompt
+        simple_prompt = f"""Generate dialogue between characters. Just write the lines:
+
+{prompt.split('Characters (speak in this order, cycling through):')[1].split('Generate exactly')[0]}
+
+Write conversation lines in this format:
+CharacterName: What they say
+
+Start now:"""
+        
+        # Make another API call with simpler prompt
+        try:
+            simple_completion = client.chat.completions.create(
+                model=LLM_MODEL_NAME,
+                messages=[{"role": "user", "content": simple_prompt}],
+                max_tokens=min(num_predict, 400),  # Limit tokens for fallback
+                temperature=0.9
+            )
+            
+            if simple_completion and simple_completion.choices:
+                fallback_message = simple_completion.choices[0].message
+                fallback_content = fallback_message.content or getattr(fallback_message, "reasoning_content", "") or ""
+                
+                if fallback_content:
+                    fallback_dialogue = extract_dialogue_aggressively(fallback_content, "fallback")
+                    if fallback_dialogue:
+                        final_lines = fallback_dialogue[:min(target_lines, 12)]  # Limit fallback to fewer lines
+                        formatted_lines = []
+                        for i, line in enumerate(final_lines):
+                            formatted_lines.append(line)
+                            if i < len(final_lines) - 1:
+                                formatted_lines.append("")
+                        return "\n".join(formatted_lines)
+        
+        except Exception as fallback_error:
+            print(f"Fallback generation failed: {fallback_error}")
+        
+        # Final fallback: return detailed debug info
+        debug_info = "DIALOGUE EXTRACTION FAILED\n"
+        debug_info += f"Sources checked: {len(all_content)}\n\n"
+        
+        for source_name, content in all_content:
+            debug_info += f"=== {source_name.upper()} ===\n"
+            debug_info += f"Length: {len(content)} characters\n"
+            debug_info += f"First 500 chars:\n{content[:500]}\n"
+            debug_info += "="*50 + "\n\n"
+        
+        return debug_info
+
+    except Exception as e:
+        raise RuntimeError(f"LLM request failed: {e}")
+
+
+
+
 
 # --- API Endpoints ---
-
-# Test Root Endpoint
 @app.get("/")
 async def root():
-    return {"message": "NPC Dialogue Generator API is running locally, forwarding to Colab LLM!"}
+    return {"message": f"NPC Dialogue Generator API is running with {LLM_MODEL_NAME} (no auth)!"}
+# Add this new endpoint for JSON file uploads
+@app.post("/generate_dialogue_from_file", response_model=DialogueResponse)
+async def generate_dialogue_from_file(
+    file: UploadFile = File(...),
+    dialogue_length: Literal["Short", "Medium", "Long"] = Form(...)
+):
+    # Validate file type
+    if not file.filename.endswith('.json'):
+        raise HTTPException(status_code=400, detail="Only JSON files are supported")
+    
+    try:
+        # Read and parse JSON file
+        content = await file.read()
+        json_data = json.loads(content.decode('utf-8'))
+        
+        # Extract data from JSON
+        context = json_data.get("context", "")
+        characters_data = json_data.get("characters", [])
+        
+        # Validate JSON structure
+        if not context:
+            raise HTTPException(status_code=400, detail="JSON must contain 'context' field")
+        
+        if not characters_data or not isinstance(characters_data, list):
+            raise HTTPException(status_code=400, detail="JSON must contain 'characters' array")
+        
+        # Convert to Character objects
+        characters = []
+        for char_data in characters_data:
+            if not all(key in char_data for key in ['name', 'personality', 'occupation', 'relationship']):
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Each character must have 'name', 'personality', 'occupation', and 'relationship' fields"
+                )
+            characters.append(Character(**char_data))
+        
+        # Create dialogue request
+        dialogue_request = DialogueRequest(
+            context=context,
+            characters=characters,
+            dialogue_length=dialogue_length
+        )
+        
+        # Generate dialogue using existing logic
+        prompt = create_prompt(dialogue_request.dict())
+        
+        length_config = {
+            "Short": {"max_tokens": 300, "target_lines": 24},
+            "Medium": {"max_tokens": 800, "target_lines": 48},
+            "Long": {"max_tokens": 1200, "target_lines": 62}
+        }
+        config = length_config[dialogue_length]
+        
+        full_response_content = get_llm_response(
+            prompt, 
+            config["max_tokens"], 
+            config["target_lines"]
+        )
+        
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
+        return DialogueResponse(
+            generated_dialogue=full_response_content,
+            model_used=LLM_MODEL_NAME,
+            timestamp=timestamp
+        )
+        
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dialogue generation failed: {str(e)}")
 
-
-# Dialogue Generation Endpoint (now calls the Colab LLM)
+# Also update your existing endpoint to handle both JSON requests and form data
 @app.post("/generate_dialogue", response_model=DialogueResponse)
-async def generate_dialogue(request: DialogueRequest):
-    print("Local FastAPI: Forwarding request to Colab LLM server...")
+async def generate_dialogue(request: Request):
+    try:
+        # Try to parse as JSON first
+        data = await request.json()
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
 
     try:
-        prompt = create_prompt(request)
+        dialogue_request = DialogueRequest(**data)
+        prompt = create_prompt(dialogue_request.dict())
 
-        # Map desired length to Colab LLM's max_new_tokens
-        # --- Increase max_new_tokens AGGRESSIVELY ---
-        if request.dialogue_length == "Short":
-            llm_max_new_tokens = 150  # From 120
-        elif request.dialogue_length == "Medium":
-            llm_max_new_tokens = 300  # From 250
-        else:  # Long
-            llm_max_new_tokens = 600  # From 400 (This is a lot of tokens, should prevent simple cut-offs)
-
-        # Data to send to the Colab LLM
-        colab_payload = {
-            "prompt": prompt,
-            "max_new_tokens": llm_max_new_tokens,
-            "temperature": 0.8,  # Keep this, can experiment between 0.7 and 0.9
-            "top_p": 0.9,
-            "top_k": 50,
+        length_config = {
+            "Short": {"max_tokens": 300, "target_lines": 24},
+            "Medium": {"max_tokens": 800, "target_lines": 48},
+            "Long": {"max_tokens": 1200, "target_lines": 62}
         }
+        config = length_config[dialogue_request.dialogue_length]
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid input schema: {e}")
 
-        # Make request to the Colab LLM server
-        # Ensure timeout is sufficiently long for LLM generation
-        response = requests.post(
-            COLAB_LLM_API_URL, json=colab_payload, timeout=180
-        )  # Increased timeout to 3 minutes
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-
-        colab_result = response.json()
-        generated_text = colab_result.get("generated_text", "")
-
-        generated_dialogue_cleaned = ""
-        assistant_marker = "<|assistant|>"
-
-        if assistant_marker in generated_text:
-            start_index = generated_text.rfind(assistant_marker) + len(assistant_marker)
-            generated_dialogue_raw = generated_text[start_index:].strip()
-
-            # Clean up special tokens
-            generated_dialogue_cleaned = (
-                generated_dialogue_raw.replace("</s>", "")
-                .replace("<|endoftext|>", "")
-                .strip()
-            )
-
-            # If the model sometimes includes the "Dialogue:" header again, remove it
-            if generated_dialogue_cleaned.startswith("Dialogue:"):
-                generated_dialogue_cleaned = generated_dialogue_cleaned.replace(
-                    "Dialogue:", ""
-                ).strip()
-
-            # --- NEW/IMPROVED: Post-processing to remove action parts ---
-            # Regex to find and remove text within parentheses, including the parentheses themselves.
-            # This pattern handles nesting up to a certain degree, and also ensures surrounding whitespace is cleaned.
-            # It's important to do this *before* the natural ending check.
-            generated_dialogue_cleaned = re.sub(
-                r"\s*\([^()]*\)", "", generated_dialogue_cleaned
-            ).strip()
-            # If there could be nested parentheses, a more complex regex or iterative removal might be needed:
-            # while '(' in generated_dialogue_cleaned and ')' in generated_dialogue_cleaned:
-            #    generated_dialogue_cleaned = re.sub(r'\([^()]*\)', '', generated_dialogue_cleaned)
-            # generated_dialogue_cleaned = generated_dialogue_cleaned.strip()
-
-            # --- NEW/IMPROVED: Post-processing to attempt natural ending ---
-            if generated_dialogue_cleaned:
-                last_char = generated_dialogue_cleaned[-1]
-                # Check for common sentence endings (period, question, exclamation, ellipsis)
-                if last_char not in [".", "?", "!", "…"]:  # Added ellipsis
-                    # Find the last significant punctuation. Prioritize sentence-ending ones.
-                    last_full_stop_index = max(
-                        generated_dialogue_cleaned.rfind("."),
-                        generated_dialogue_cleaned.rfind("?"),
-                        generated_dialogue_cleaned.rfind("!"),
-                    )
-
-                    # If a full stop is found and it's not too far back (e.g., within last 50 characters)
-                    if (
-                        last_full_stop_index != -1
-                        and (
-                            len(generated_dialogue_cleaned) - (last_full_stop_index + 1)
-                        )
-                        < 50
-                    ):
-                        generated_dialogue_cleaned = generated_dialogue_cleaned[
-                            : last_full_stop_index + 1
-                        ]
-                    else:
-                        # If no natural full stop, or it's too far back, add an ellipsis
-                        generated_dialogue_cleaned += "..."
-
-        else:
-            print(
-                "Warning: Assistant marker '<|assistant|>' not found in Colab LLM output. Attempting basic cleanup."
-            )
-            prompt_end_marker_len = len(prompt)
-            if len(generated_text) > prompt_end_marker_len:
-                generated_dialogue_cleaned = generated_text[
-                    prompt_end_marker_len:
-                ].strip()
-            else:
-                generated_dialogue_cleaned = generated_text.strip()
-            generated_dialogue_cleaned = (
-                generated_dialogue_cleaned.replace("</s>", "")
-                .replace("<|endoftext|>", "")
-                .strip()
-            )
-
-        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
-
-        return DialogueResponse(
-            generated_dialogue=generated_dialogue_cleaned,
-            model_used="Zephyr-7B-Beta (via Colab)",
-            timestamp=timestamp,
+    try:
+        full_response_content = get_llm_response(
+            prompt, 
+            config["max_tokens"], 
+            config["target_lines"]
         )
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error connecting to Colab LLM server: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail=f"Failed to connect to LLM server: {str(e)}. Is your Colab notebook running and Ngrok tunnel active?",
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
+        return DialogueResponse(
+            generated_dialogue=full_response_content,
+            model_used=LLM_MODEL_NAME,
+            timestamp=timestamp
         )
     except Exception as e:
-        print(f"Error during dialogue generation: {e}")
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Dialogue generation failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Dialogue generation failed: {str(e)}")

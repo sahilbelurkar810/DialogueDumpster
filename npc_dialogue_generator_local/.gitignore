@@ -1,28 +1,44 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
 
-# testing
-/coverage
+# Environment variables and secrets
+.env
+*.env
 
-# production
-/build
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
 
-# misc
+# VS Code settings
+.vscode/
+
+# OS files
 .DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+Thumbs.db
 
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Logs
+*.log
 
-/_pycache
-*.pyc
+# Test and coverage outputs
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache/
+pytest_cache/
+coverage.xml
 
-/venv
+# Database and data files
+*.sqlite3
+*.db
+*.pkl
+*.h5
+
+#
