@@ -22,7 +22,7 @@ const DisplayContainer = styled.div`
 const OutputTextarea = styled.textarea`
   flex-grow: 1;
   width: 100%;
-  padding: 0;
+  padding: 0.3rem;
   background-color: transparent;
   color: var(--color-text-light);
   border: none;
@@ -30,6 +30,7 @@ const OutputTextarea = styled.textarea`
   resize: none;
   overflow-y: auto;
   font-family: var(--font-family-mono);
+  line-height: 1.8;
 `;
 
 const LoadingOverlay = styled.div`

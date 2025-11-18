@@ -165,9 +165,9 @@ const StyledJsonUpload = styled.div`
   }
 `;
 
-const FileInput = styled.input`
-  display: none;
-`;
+// const FileInput = styled.input`
+//   display: none;
+// `;
 
 function DialoguePage() {
   const [useJsonMode, setUseJsonMode] = useState(false);
@@ -268,8 +268,8 @@ function DialoguePage() {
       }
       const result = await response.json();
       setGeneratedDialogue(result.generated_dialogue);
-      const formattedTimestamp = new Date(result.timestamp).toLocaleString();
-      setInfoMessage(`Model: ${result.model_used} | Generated: ${formattedTimestamp}`);
+      // const formattedTimestamp = new Date(result.timestamp).toLocaleString();
+      // setInfoMessage(`Model: ${result.model_used} | Generated: ${formattedTimestamp}`);
     } catch (e) {
       console.error("Error generating dialogue:", e);
       setError(`Failed to generate dialogue: ${e.message}. Please ensure your FastAPI server is running.`);

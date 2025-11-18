@@ -25,9 +25,9 @@ function DialogueLengthSelector({ value, onChange }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
       <StyledLabel htmlFor="dialogue-length">Dialogue Length</StyledLabel>
       <StyledSelect id="dialogue-length" value={value} onChange={onChange}>
-        <option value="Short">Short (2-5 exchanges)</option>
-        <option value="Medium">Medium (6-10 exchanges)</option>
-        <option value="Long">Long (11-20+ exchanges)</option>
+        <option value="Short">Short</option>
+        <option value="Medium">Medium</option>
+        <option value="Long">Long</option>
       </StyledSelect>
     </div>
   );
