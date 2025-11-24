@@ -43,7 +43,7 @@ const LoadingOverlay = styled.div`
   justify-content: center;
   color: white;
   border-radius: var(--border-radius-lg);
-  gap: 1rem;
+  gap: 1.03rem;
 `;
 
 const Spinner = styled.div`
