@@ -12,6 +12,11 @@ const Nav = styled.nav`
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+    flex-wrap: wrap;
+  }
 `;
 
 const Brand = styled(Link)`
@@ -20,6 +25,22 @@ const Brand = styled(Link)`
   font-size: 1.5rem;
   color: var(--color-accent-primary);
   text-decoration: none;
+  white-space: nowrap;
+
+  @media (max-width: 480px) {
+    font-size: 1.2rem;
+  }
+`;
+
+const NavContainer = styled.div`
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    width: 100%;
+  }
 `;
 
 const NavLinks = styled.ul`
@@ -27,6 +48,16 @@ const NavLinks = styled.ul`
   display: flex;
   gap: 2rem;
   align-items: center;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    text-align: center;
+    max-height: ${(props) => (props.isOpen ? "500px" : "0")};
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out;
+  }
 `;
 
 const NavLink = styled(Link)`
@@ -36,6 +67,11 @@ const NavLink = styled(Link)`
   transition: color 0.2s ease-in-out;
   &.active {
     color: var(--color-accent-primary);
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.5rem 0;
+    display: block;
   }
 `;
 
@@ -49,6 +85,12 @@ const StyledButton = styled(Link)`
   transition: all 0.2s ease-in-out;
   text-align: center;
   text-decoration: none;
+  white-space: nowrap;
+
+  @media (max-width: 768px) {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+  }
 `;
 
 const NavButtonPrimary = styled(StyledButton)`
@@ -72,6 +114,77 @@ const UserInfo = styled.p`
   font-size: 1rem;
   color: var(--color-text-light);
   font-weight: 500;
+  margin: 0;
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    margin: 0.5rem 0;
+  }
+`;
+
+const HamburgerMenu = styled.button`
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 30px;
+  height: 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+
+  @media (max-width: 768px) {
+    display: flex;
+  }
+
+  span {
+    width: 100%;
+    height: 3px;
+    background-color: var(--color-accent-primary);
+    border-radius: 5px;
+    transition: all 0.3s ease-in-out;
+  }
+
+  ${(props) =>
+    props.isOpen &&
+    `
+    span:nth-child(1) {
+      transform: translateY(8px) rotate(45deg);
+    }
+    span:nth-child(2) {
+      opacity: 0;
+    }
+    span:nth-child(3) {
+      transform: translateY(-8px) rotate(-45deg);
+    }
+  `}
+`;
+
+const AuthButtonsContainer = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.8rem;
+
+    ${NavButtonPrimary}, ${NavButtonSecondary} {
+      width: 100%;
+    }
+  }
+`;
+
+const UserContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    width: 100%;
+  }
 `;
 
 function Navbar() {
@@ -93,8 +206,13 @@ function Navbar() {
       <Brand to="/" onClick={closeMenu}>
         DIALOGUE DUMPSTER
       </Brand>
-      <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-        <NavLinks>
+      <HamburgerMenu isOpen={isOpen} onClick={toggleMenu}>
+        <span></span>
+        <span></span>
+        <span></span>
+      </HamburgerMenu>
+      <NavContainer>
+        <NavLinks isOpen={isOpen}>
           <li>
             <NavLink
               to="/"
@@ -126,19 +244,23 @@ function Navbar() {
           )}
         </NavLinks>
         {!token ? (
-          <>
-            <NavButtonSecondary to="/login">Login</NavButtonSecondary>
-            <NavButtonPrimary to="/signup">Sign Up</NavButtonPrimary>
-          </>
+          <AuthButtonsContainer>
+            <NavButtonSecondary to="/login" onClick={closeMenu}>
+              Login
+            </NavButtonSecondary>
+            <NavButtonPrimary to="/signup" onClick={closeMenu}>
+              Sign Up
+            </NavButtonPrimary>
+          </AuthButtonsContainer>
         ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <UserContainer>
             <UserInfo>Welcome, {user?.username || "User"}</UserInfo>
             <NavButtonSecondary to="#" onClick={handleLogout}>
               Logout
             </NavButtonSecondary>
-          </div>
+          </UserContainer>
         )}
-      </div>
+      </NavContainer>
     </Nav>
   );
 }
