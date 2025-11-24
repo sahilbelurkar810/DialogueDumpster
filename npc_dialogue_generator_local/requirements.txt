@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 python-dotenv
-pydantic
+pydantic[email]
 huggingface-hub
 python-multipart
 passlib
@@ -10,3 +10,4 @@ bcrypt
 PyJWT
 motor
 requests
+pymongo
