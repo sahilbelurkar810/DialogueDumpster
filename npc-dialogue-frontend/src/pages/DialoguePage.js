@@ -193,7 +193,8 @@ function DialoguePage() {
   const handleAddCharacter = () => { setCharacters([...characters, { name: "", personality: "", occupation: "", relationship: "" }]); };
   const handleRemoveCharacter = (indexToRemove) => { if (characters.length > 1) { setCharacters(characters.filter((_, index) => index !== indexToRemove)); } };
 
-  const API_URL = "http://127.0.0.1:8000/generate_dialogue";
+  // const API_URL = "http://127.0.0.1:8000/generate_dialogue";
+  const API_URL = "https://dialoguedumpster.onrender.com/generate_dialogue";
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
