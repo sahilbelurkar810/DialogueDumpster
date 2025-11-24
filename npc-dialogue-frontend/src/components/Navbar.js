@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { useAuth } from "../AuthContext";
+import logo from "../logo-d.png";
 
 const Nav = styled.nav`
   background-color: var(--color-dark-surface);
@@ -20,15 +21,25 @@ const Nav = styled.nav`
 `;
 
 const Brand = styled(Link)`
-  font-family: "Poppins", sans-serif;
-  font-weight: 700;
-  font-size: 1.5rem;
-  color: var(--color-accent-primary);
   text-decoration: none;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+
+  img {
+    height: 80px;
+    width: auto;
+    transition: transform 0.2s ease-in-out;
+  }
+
+  &:hover img {
+    transform: scale(1.05);
+  }
 
   @media (max-width: 480px) {
-    font-size: 1.2rem;
+    img {
+      height: 50px;
+    }
   }
 `;
 
@@ -166,9 +177,21 @@ const AuthButtonsContainer = styled.div`
   align-items: center;
 
   @media (max-width: 768px) {
-    flex-direction: column;
-    width: 100%;
-    gap: 0.8rem;
+    display: none;
+  }
+`;
+
+const MobileAuthButtonsContainer = styled.div`
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  gap: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--color-dark-border);
+  margin-top: 0.8rem;
+
+  @media (max-width: 768px) {
+    display: ${(props) => (props.isOpen ? "flex" : "none")};
 
     ${NavButtonPrimary}, ${NavButtonSecondary} {
       width: 100%;
@@ -204,7 +227,7 @@ function Navbar() {
   return (
     <Nav>
       <Brand to="/" onClick={closeMenu}>
-        DIALOGUE DUMPSTER
+        <img src={logo} alt="Dialogue Dumpster Logo" />
       </Brand>
       <HamburgerMenu isOpen={isOpen} onClick={toggleMenu}>
         <span></span>
@@ -244,14 +267,24 @@ function Navbar() {
           )}
         </NavLinks>
         {!token ? (
-          <AuthButtonsContainer>
-            <NavButtonSecondary to="/login" onClick={closeMenu}>
-              Login
-            </NavButtonSecondary>
-            <NavButtonPrimary to="/signup" onClick={closeMenu}>
-              Sign Up
-            </NavButtonPrimary>
-          </AuthButtonsContainer>
+          <>
+            <AuthButtonsContainer>
+              <NavButtonSecondary to="/login" onClick={closeMenu}>
+                Login
+              </NavButtonSecondary>
+              <NavButtonPrimary to="/signup" onClick={closeMenu}>
+                Sign Up
+              </NavButtonPrimary>
+            </AuthButtonsContainer>
+            <MobileAuthButtonsContainer isOpen={isOpen}>
+              <NavButtonSecondary to="/login" onClick={closeMenu}>
+                Login
+              </NavButtonSecondary>
+              <NavButtonPrimary to="/signup" onClick={closeMenu}>
+                Sign Up
+              </NavButtonPrimary>
+            </MobileAuthButtonsContainer>
+          </>
         ) : (
           <UserContainer>
             <UserInfo>Welcome, {user?.username || "User"}</UserInfo>
