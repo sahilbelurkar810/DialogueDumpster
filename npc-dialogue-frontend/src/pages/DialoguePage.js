@@ -165,9 +165,9 @@ const StyledJsonUpload = styled.div`
   }
 `;
 
-const FileInput = styled.input`
-  display: none;
-`;
+// const FileInput = styled.input`
+//   display: none;
+// `;
 
 function DialoguePage() {
   const [useJsonMode, setUseJsonMode] = useState(false);
@@ -193,7 +193,8 @@ function DialoguePage() {
   const handleAddCharacter = () => { setCharacters([...characters, { name: "", personality: "", occupation: "", relationship: "" }]); };
   const handleRemoveCharacter = (indexToRemove) => { if (characters.length > 1) { setCharacters(characters.filter((_, index) => index !== indexToRemove)); } };
 
-  const API_URL = "http://127.0.0.1:8000/generate_dialogue";
+  // const API_URL = "http://127.0.0.1:8000/generate_dialogue";
+  const API_URL = "https://dialoguedumpster.onrender.com/generate_dialogue";
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -268,8 +269,8 @@ function DialoguePage() {
       }
       const result = await response.json();
       setGeneratedDialogue(result.generated_dialogue);
-      const formattedTimestamp = new Date(result.timestamp).toLocaleString();
-      setInfoMessage(`Model: ${result.model_used} | Generated: ${formattedTimestamp}`);
+      // const formattedTimestamp = new Date(result.timestamp).toLocaleString();
+      // setInfoMessage(`Model: ${result.model_used} | Generated: ${formattedTimestamp}`);
     } catch (e) {
       console.error("Error generating dialogue:", e);
       setError(`Failed to generate dialogue: ${e.message}. Please ensure your FastAPI server is running.`);

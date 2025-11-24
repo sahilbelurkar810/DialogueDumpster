@@ -26,7 +26,8 @@ const TokenDisplay = styled.div`
   margin-top: 1rem;
 `;
 
-const API_URL = "http://127.0.0.1:8000";
+// const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://dialoguedumpster.onrender.com";
 
 function TokenPage() {
   const { token } = useAuth();
